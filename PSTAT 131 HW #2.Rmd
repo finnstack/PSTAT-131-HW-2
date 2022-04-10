@@ -1,0 +1,89 @@
+---
+title: 'PSTAT 131 HW #2'
+author: "Finn Stack"
+date: "4/10/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Reading the Abalone data:
+
+```{r, echo=FALSE}
+
+abalone <- read.csv("/Users/finnianstack/Desktop/School/PSTAT/PSTAT 131/HW #2/abalone.csv")
+
+```
+**Question 1**
+Your goal is to predict abalone age, which is calculated as the number of rings plus 1.5. Notice there currently is no age variable in the data set. Add age to the data set.
+
+Assess and describe the distribution of age.   **NEED TO DO THIS**
+
+```{r, echo=FALSE}
+
+abalone$age <- abalone$rings + 1.5
+
+abalone %>%
+  head()
+
+hist(abalone$age, xlab = "Age", main = "Abalone Age Distribution")
+
+```
+
+As we can see from the histogram above, it appears that the age is somewhat normally distributed with approximate 11 years old being the most common.
+
+
+**Question 2**
+Split the abalone data into a training set and a testing set. Use stratified sampling. You should decide on appropriate percentages for splitting the data.
+
+Remember that you’ll need to set a seed at the beginning of the document to reproduce your results.
+
+```{r, echo=FALSE}
+set.seed(1213)
+
+abalone_split <- initial_split(abalone, prop = 0.80,
+                                strata = age)
+abalone_train <- training(abalone_split)
+abalone_test <- testing(abalone_split)
+
+```
+
+
+```{r, echo = True}
+
+simple_abalone_recipe <-
+  recipe(age ~ type + shucked_weight + longest_shell + diameter + 
+           shucked_weight + shell_weight + viscera_weight, data = abalone)
+
+
+abalone_recipe_1 <- recipe(age ~ type + shucked_weight, data = abalone) %>% 
+  step_dummy(all_nominal_predictors())
+
+abalone_recipe_2 <- recipe(age ~ longest_shell + diameter, data = abalone) %>% 
+  step_dummy(all_nominal_predictors())
+
+abalone_recipe_2 <- recipe(age ~ shucked_weight + shell_weight, data = abalone) %>% 
+  step_dummy(all_nominal_predictors())
+
+
+```
+
+We should not use rings to predict age because our goal with this is to find a way to predict age in a less-invasive way than cutting the abolone open and counting the rings. 
+
+
+**Question 4**
+Create and store a linear regression object using the "lm" engine.
+
+```{r, echo = True}
+lm_model <- linear_reg() %>% 
+  set_engine("lm")
+```
+
+**Question 5**
+Now:
+
+set up an empty workflow,
+add the model you created in Question 4, and
+add the recipe that you created in Question 3.
