@@ -9,14 +9,24 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r, echo = FALSE, include = FALSE}
+library(readr)
+library(dplyr)
+library(lmtest)
+library(ggplot2)
+library(gridExtra)
+library(MASS)
+```
+
 Reading the Abalone data:
 
-```{r, echo=FALSE}
+```{r, echo=TRUE}
 
 abalone <- read.csv("/Users/finnianstack/Desktop/School/PSTAT/PSTAT 131/HW #2/abalone.csv")
 
 ```
-**Question 1**
+**Question 1**  
+
 Your goal is to predict abalone age, which is calculated as the number of rings plus 1.5. Notice there currently is no age variable in the data set. Add age to the data set.
 
 Assess and describe the distribution of age.   **NEED TO DO THIS**
@@ -35,12 +45,19 @@ hist(abalone$age, xlab = "Age", main = "Abalone Age Distribution")
 As we can see from the histogram above, it appears that the age is somewhat normally distributed with approximate 11 years old being the most common.
 
 
-**Question 2**
-Split the abalone data into a training set and a testing set. Use stratified sampling. You should decide on appropriate percentages for splitting the data.
+**Question 2**  
 
+Split the abalone data into a training set and a testing set. Use stratified sampling. You should decide on appropriate percentages for splitting the data.
+  
+  
 Remember that you’ll need to set a seed at the beginning of the document to reproduce your results.
 
-```{r, echo=FALSE}
+```{r, echo=TRUE, include = FALSE}
+library(tidyverse)
+library(tidymodels)
+```
+
+```{r, echo=TRUE}
 set.seed(1213)
 
 abalone_split <- initial_split(abalone, prop = 0.80,
@@ -51,21 +68,13 @@ abalone_test <- testing(abalone_split)
 ```
 
 
-```{r, echo = True}
+```{r, echo = TRUE}
 
-simple_abalone_recipe <-
+abalone_recipe <-
   recipe(age ~ type + shucked_weight + longest_shell + diameter + 
-           shucked_weight + shell_weight + viscera_weight, data = abalone)
-
-
-abalone_recipe_1 <- recipe(age ~ type + shucked_weight, data = abalone) %>% 
-  step_dummy(all_nominal_predictors())
-
-abalone_recipe_2 <- recipe(age ~ longest_shell + diameter, data = abalone) %>% 
-  step_dummy(all_nominal_predictors())
-
-abalone_recipe_2 <- recipe(age ~ shucked_weight + shell_weight, data = abalone) %>% 
-  step_dummy(all_nominal_predictors())
+           shucked_weight + shell_weight, data = abalone) %>%
+  step_dummy(all_nominal_predictors()) %>%
+  step_scale(all_predictors()) %>% step_center(all_predictors())
 
 
 ```
@@ -73,17 +82,105 @@ abalone_recipe_2 <- recipe(age ~ shucked_weight + shell_weight, data = abalone) 
 We should not use rings to predict age because our goal with this is to find a way to predict age in a less-invasive way than cutting the abolone open and counting the rings. 
 
 
-**Question 4**
+**Question 4**  
+
 Create and store a linear regression object using the "lm" engine.
 
-```{r, echo = True}
+```{r, echo = TRUE}
 lm_model <- linear_reg() %>% 
   set_engine("lm")
 ```
 
-**Question 5**
+**Question 5**  
+
 Now:
 
-set up an empty workflow,
-add the model you created in Question 4, and
-add the recipe that you created in Question 3.
+1. set up an empty workflow,  
+
+2. add the model you created in Question 4, and  
+
+3. add the recipe that you created in Question 3.  
+
+```{r, echo = TRUE}
+
+lm_wflow <- workflow() %>% 
+  add_model(lm_model) %>% 
+  add_recipe(abalone_recipe)
+
+```
+
+```{r, echo = TRUE}
+
+lm_fit <- fit(lm_wflow, abalone_train)
+
+```
+
+```{r, echo = TRUE}
+lm_fit %>% 
+  # This returns the parsnip object:
+  extract_fit_parsnip() %>% 
+  # Now tidy the linear model object:
+  tidy()
+```
+
+
+**Question 6**  
+
+Use your fit() object to predict the age of a hypothetical female abalone with longest_shell = 0.50, diameter = 0.10, height = 0.30, whole_weight = 4, shucked_weight = 1, viscera_weight = 2, shell_weight = 1.
+
+```{r, echo = TRUE}
+
+female_test <- data.frame(type = 'F', longest_shell = 0.50, diameter = 0.10,
+                          height = 0.30, whole_weight = 4, shucked_weight = 1, 
+                          viscera_weight = 2, shell_weight = 1)
+
+predict(lm_fit, female_test)
+
+```
+The prediction of a hypothetical female abalone with the statistics above has an age of 16.392  
+
+  
+  
+
+**Question 7**  
+
+Now you want to assess your model’s performance. To do this, use the yardstick package:
+
+1. Create a metric set that includes R2, RMSE (root mean squared error), and MAE (mean absolute error)  
+
+
+2. Use predict() and bind_cols() to create a tibble of your model’s predicted values from the training data along with the actual observed ages (these are needed to assess your model’s performance).  
+
+3. Finally, apply your metric set to the tibble, report the results, and interpret the R2 value.
+
+
+```{r, echo = FALSE}
+
+abalone_train %>%
+  head()
+
+```
+
+```{r, echo = FALSE}
+abalone_train_res <- predict(lm_fit, new_data = abalone_train)
+
+abalone_train_res %>% 
+  head()
+
+```
+
+
+```{r, echo = FALSE}
+
+abalone_train_res <- bind_cols(abalone_train_res, abalone_train)
+abalone_train_res %>% 
+  head()
+
+```
+```{r, echo = FALSE}
+rmse(abalone_train_res, truth = age, estimate = .pred)
+abalone_metrics <- metric_set(rmse, rsq, mae)
+abalone_metrics(abalone_train_res, truth = age, 
+                estimate = .pred)
+```
+Based off of this data and the R squared value of 0.52, we can determine that this did a pretty good job of predicting. I.e. it was a relatively good fit.
